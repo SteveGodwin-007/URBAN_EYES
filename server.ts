@@ -98,7 +98,9 @@ dataSource = mode;
 
 async function startServer() {
   const expressApp = express();
-  const PORT = 3000;
+  // Render (and most PaaS hosts) inject a PORT env var — always honour it
+  // and fall back to 3000 for local development.
+  const PORT = Number(process.env.PORT) || 3000;
 
   expressApp.use(express.json());
 

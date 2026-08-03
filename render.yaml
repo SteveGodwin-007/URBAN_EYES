@@ -1,0 +1,31 @@
+# Render Blueprint — Urban Eyes Chennai
+# Deploy: https://render.com → New → Blueprint → point at this repo
+# Live URL: https://urban-eyes-yk0f.onrender.com
+#
+# Secrets (GEMINI_API_KEY, MongoDB credentials) are NOT stored here — Render
+# prompts for them when you create the service, and they can be edited under
+# Dashboard → Environment.
+
+services:
+  - type: web
+    name: urban-eyes
+    runtime: node
+    plan: free
+    buildCommand: npm run build
+    startCommand: npm start
+    healthCheckPath: /api/stats
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_URL
+        value: https://urban-eyes-yk0f.onrender.com
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: MONGODB_USER
+        sync: false
+      - key: MONGODB_PASSWORD
+        sync: false
+      - key: MONGODB_HOST
+        sync: false
+      - key: MONGODB_DB
+        value: urban-eyes

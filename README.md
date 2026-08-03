@@ -28,6 +28,8 @@ _Potholes on Chennai's roads — detected in real time by cameras on city buses,
   <img src="https://img.shields.io/badge/Raspberry%20Pi-Edge-A22846?style=for-the-badge&logo=raspberrypi&logoColor=white" alt="Raspberry Pi Edge" />
   <img src="https://img.shields.io/badge/PRs-Welcome-brightgreen?style=for-the-badge" alt="PRs Welcome" />
   <img src="https://img.shields.io/badge/Made%20in-Chennai-F97316?style=for-the-badge" alt="Made in Chennai" />
+  <br />
+  <a href="https://urban-eyes-yk0f.onrender.com/"><img src="https://img.shields.io/badge/Live_Demo-urban-eyes--yk0f.onrender.com-46E3B7?style=for-the-badge&logo=render&logoColor=black" alt="Live Demo on Render" /></a>
 </p>
 
 ---
@@ -45,6 +47,33 @@ _Potholes on Chennai's roads — detected in real time by cameras on city buses,
 > # 3. Run
 > npm run dev            # → http://localhost:3000
 > ```
+
+## 🌐 Live Deployment
+
+> [!IMPORTANT]
+> The app is hosted on **Render** at **https://urban-eyes-yk0f.onrender.com/**
+> (Express API + built frontend served together on the same origin).
+
+**Deploying to Render:**
+
+1. Push this repo to GitHub, then in Render choose **New → Web Service** (or **Blueprint**) and connect the repo.
+2. Set the build command to `npm run build` and the start command to `npm start` (the included [`render.yaml`](render.yaml) does this automatically when used as a Blueprint).
+3. Add these environment variables in the Render dashboard (secrets are never stored in the repo):
+
+   | Variable | Example |
+   |----------|---------|
+   | `NODE_ENV` | `production` |
+   | `APP_URL` | `https://urban-eyes-yk0f.onrender.com` |
+   | `GEMINI_API_KEY` | *(your Gemini key)* |
+   | `MONGODB_USER` / `MONGODB_PASSWORD` | *(Atlas credentials)* |
+   | `MONGODB_HOST` | `cluster0.uotjzrt.mongodb.net` |
+   | `MONGODB_DB` | `urban-eyes` |
+
+   > If MongoDB env vars are missing, the server logs `[MEMORY MODE]` and uses an in-memory store (data resets on restart).
+
+4. Deploy — the server binds to Render's `PORT` automatically.
+
+Point your edge devices at `https://urban-eyes-yk0f.onrender.com/api/potholes` (see the [edge device](#-edge-device-raspberry-pi) section).
 
 ## ✨ Features
 

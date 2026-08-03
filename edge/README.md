@@ -57,7 +57,7 @@ Key settings:
 
 | Variable | What to set |
 |----------|-------------|
-| `API_ENDPOINT` | Server URL. Same-Wi-Fi dev: `http://<your-PC-LAN-IP>:3000/api/potholes`. Deployed: your public URL. |
+| `API_ENDPOINT` | Server URL. Same-Wi-Fi dev: `http://<your-PC-LAN-IP>:3000/api/potholes`. Deployed (Render): `https://urban-eyes-yk0f.onrender.com/api/potholes`. |
 | `BUS_ROUTE_ID` | e.g. `21G` (shown on the dashboard) |
 | `BUS_ID` | e.g. `CHN-BUS-7822` |
 | `MODEL_PATH` | Your pothole-trained model (see below) |
