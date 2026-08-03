@@ -1,0 +1,71 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidLocation(loc) {
+      return loc.latitude is number && loc.latitude >= -90 && loc.latitude <= 90 &&
+             loc.longitude is number && loc.longitude >= -180 && loc.longitude <= 180;
+    }
+
+    function isValidPothole(data) {
+      return data.keys().hasAll(['location', 'timestamp', 'busRouteId', 'status', 'severity']) &&
+             data.location is map && isValidLocation(data.location) &&
+             data.timestamp is string && data.timestamp.size() <= 64 &&
+             data.busRouteId is string && data.busRouteId.size() <= 32 &&
+             data.status in ['DETECTED', 'SENT_TO_GCC', 'VIEWED', 'ACTION_TAKEN'] &&
+             data.severity in ['SMALL', 'MEDIUM', 'LARGE'] &&
+             (data.get('confidence', 0) is number) &&
+             (data.get('imageUrl', '') is string && data.get('imageUrl', '').size() <= 1024) &&
+             (data.get('remarks', '') is string && data.get('remarks', '').size() <= 2048) &&
+             (data.get('busId', '') is string && data.get('busId', '').size() <= 64) &&
+             (data.get('history', []) is list) &&
+             (data.get('updatedAt', '') is string && data.get('updatedAt', '').size() <= 64);
+    }
+
+    // --- Rules for Potholes ---
+    match /test/connection {
+      allow get: if true;
+    }
+
+    match /potholes/{potholeId} {
+      // Allow read for everyone for this specific demo/dashboard
+      allow get, list: if true;
+      
+      // Allow create if data is valid (Server or Edge)
+      allow create: if isValidId(potholeId) && isValidPothole(incoming()) && incoming().keys().size() <= 15;
+
+      // Allow updates for specific fields (Status Transitions)
+      allow update: if (
+        isValidId(potholeId) && 
+        isValidPothole(incoming()) && (
+          // Action: GCC Review (Status, Remarks, UpdatedAt, History)
+          incoming().diff(existing()).affectedKeys().hasOnly(['status', 'remarks', 'updatedAt', 'history']) ||
+          // Immutable once action taken (Optional strictness)
+          (existing().status != 'ACTION_TAKEN')
+        )
+      );
+    }
+  }
+}

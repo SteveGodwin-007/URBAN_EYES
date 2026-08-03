@@ -1,0 +1,12 @@
+{
+  "name": "Urban Eyes Chennai",
+  "description": "Smart city pothole monitoring and infrastructure survey system for GCC.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "real_time_monitoring",
+    "geospatial_mapping",
+    "automated_severity_analysis"
+  ]
+}

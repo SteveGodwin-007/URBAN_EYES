@@ -1,0 +1,16 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Python (edge device)
+__pycache__/
+*.pyc
+
+# Local typecheck diagnostics
+tsc_*.txt
+

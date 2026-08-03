@@ -1,0 +1,19 @@
+# Urban Eyes Chennai — Raspberry Pi edge device dependencies
+# Install with: pip install -r requirements.txt
+
+# YOLO detection (pulls in torch + opencv helpers)
+ultralytics>=8.3.0
+
+# USB webcam capture fallback (headless build to save resources)
+opencv-python-headless>=4.9.0
+
+# Official Pi camera stack (CSI cameras). Pre-installed on Raspberry Pi OS
+# Bookworm; this line is a no-op safety net on those images.
+picamera2>=0.3.17
+
+# GPS over GPIO UART
+pyserial>=3.5
+pynmea2>=1.19.0
+
+# Uploads to the Urban Eyes server
+requests>=2.31.0

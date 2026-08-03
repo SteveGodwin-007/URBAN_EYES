@@ -1,0 +1,40 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Playfair+Display:ital,wght@1,400;1,700&display=swap');
+@import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-serif: "Playfair Display", ui-serif, Georgia, serif;
+  
+  --color-brand-bg: #E4E3E0;
+  --color-brand-text: #141414;
+  --color-brand-accent: #D6D4D0;
+}
+
+@layer base {
+  body {
+    @apply bg-brand-bg text-brand-text font-sans;
+  }
+}
+
+/* Custom High Density Styles */
+.brutalist-card {
+  @apply border border-brand-text bg-white shadow-none rounded-none;
+}
+
+.brutalist-label {
+  @apply font-serif italic text-[10px] uppercase tracking-widest opacity-60;
+}
+
+.brutalist-data {
+  @apply font-mono text-xs font-bold;
+}
+
+.custom-popup .leaflet-popup-content-wrapper {
+  @apply rounded-none border border-brand-text shadow-none bg-brand-bg;
+}
+
+.custom-popup .leaflet-popup-tip {
+  @apply bg-brand-text;
+}

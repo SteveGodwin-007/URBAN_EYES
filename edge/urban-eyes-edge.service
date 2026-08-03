@@ -1,0 +1,32 @@
+# Urban Eyes Chennai — edge detector systemd service
+#
+# Install (edit the paths if your project lives elsewhere):
+#   sudo cp edge/urban-eyes-edge.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now urban-eyes-edge
+#
+# Useful commands:
+#   journalctl -u urban-eyes-edge -f     # watch logs
+#   sudo systemctl restart urban-eyes-edge
+
+[Unit]
+Description=Urban Eyes Chennai pothole edge detector
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+# Python from the venv created by setup.sh
+ExecStart=/home/pi/urban-eyes-chennai2/edge/.venv/bin/python /home/pi/urban-eyes-chennai2/edge/main.py
+WorkingDirectory=/home/pi/urban-eyes-chennai2/edge
+# Load configuration from edge.env
+EnvironmentFile=/home/pi/urban-eyes-chennai2/edge/edge.env
+# Restart if it crashes, with a short backoff
+Restart=always
+RestartSec=10
+# The detector reads camera + GPS hardware, so run as the default user
+User=pi
+Group=pi
+
+[Install]
+WantedBy=multi-user.target

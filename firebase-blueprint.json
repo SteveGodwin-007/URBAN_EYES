@@ -1,0 +1,41 @@
+{
+  "entities": {
+    "Pothole": {
+      "title": "Pothole Detection",
+      "description": "Record of a detected pothole from an edge device",
+      "type": "object",
+      "properties": {
+        "location": {
+          "type": "object",
+          "properties": {
+            "latitude": { "type": "number" },
+            "longitude": { "type": "number" }
+          },
+          "required": ["latitude", "longitude"]
+        },
+        "imageUrl": { "type": "string", "format": "uri" },
+        "confidence": { "type": "number" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "busRouteId": { "type": "string" },
+        "busId": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["DETECTED", "SENT_TO_GCC", "VIEWED", "ACTION_TAKEN"]
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["SMALL", "MEDIUM", "LARGE"]
+        },
+        "remarks": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["location", "timestamp", "busRouteId", "status", "severity"]
+    }
+  },
+  "firestore": {
+    "/potholes/{potholeId}": {
+      "schema": "Pothole",
+      "description": "Collection of all detected potholes"
+    }
+  }
+}
