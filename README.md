@@ -1,24 +1,57 @@
 <div align="center">
 
-# 🚧 Urban Eyes Chennai
+<img src="assets/urban-eyes-banner.svg" width="100%" alt="Urban Eyes Chennai — Smart City Pothole Monitoring for GCC" />
+
+# 👁️ Urban Eyes Chennai
 
 **Smart city pothole monitoring & infrastructure survey system for the Greater Chennai Corporation (GCC).**
 
-Detect potholes in real time from GPS-enabled cameras mounted on city buses, map them across Chennai, classify their severity, and track them from detection to repair.
+_Potholes on Chennai's roads — detected in real time by cameras on city buses, mapped live, graded by severity, and tracked from detection to repair._
 
 </div>
 
+<p align="center">
+  <img src="https://img.shields.io/badge/Status-Active-22c55e?style=for-the-badge" alt="Status: Active" />
+  <img src="https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=white" alt="React 19" />
+  <img src="https://img.shields.io/badge/TypeScript-5.8-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/Vite-6-646CFF?style=for-the-badge&logo=vite&logoColor=white" alt="Vite" />
+  <img src="https://img.shields.io/badge/Tailwind-v4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white" alt="Tailwind CSS v4" />
+  <br />
+  <img src="https://img.shields.io/badge/Express-4-000000?style=for-the-badge&logo=express&logoColor=white" alt="Express" />
+  <img src="https://img.shields.io/badge/MongoDB-7-47A248?style=for-the-badge&logo=mongodb&logoColor=white" alt="MongoDB" />
+  <img src="https://img.shields.io/badge/Firebase-12-FFCA28?style=for-the-badge&logo=firebase&logoColor=black" alt="Firebase" />
+  <img src="https://img.shields.io/badge/Gemini-AI-8E75B2?style=for-the-badge&logo=googlegemini&logoColor=white" alt="Gemini AI" />
+  <img src="https://img.shields.io/badge/Leaflet-1.9-199900?style=for-the-badge&logo=leaflet&logoColor=white" alt="Leaflet" />
+  <br />
+  <img src="https://img.shields.io/badge/Python-3-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3" />
+  <img src="https://img.shields.io/badge/YOLO-v8-00E5FF?style=for-the-badge" alt="YOLO v8" />
+  <img src="https://img.shields.io/badge/Raspberry%20Pi-Edge-A22846?style=for-the-badge&logo=raspberrypi&logoColor=white" alt="Raspberry Pi Edge" />
+  <img src="https://img.shields.io/badge/PRs-Welcome-brightgreen?style=for-the-badge" alt="PRs Welcome" />
+  <img src="https://img.shields.io/badge/Made%20in-Chennai-F97316?style=for-the-badge" alt="Made in Chennai" />
+</p>
+
 ---
+
+## 🚀 Quick Start
+
+> [!TIP]
+> ```bash
+> # 1. Install dependencies
+> npm install
+>
+> # 2. Configure secrets
+> cp .env.example .env   # add your GEMINI_API_KEY + MongoDB credentials
+>
+> # 3. Run
+> npm run dev            # → http://localhost:3000
+> ```
 
 ## ✨ Features
 
-- **Real-time pothole detection** — a Raspberry Pi edge device on each bus runs a YOLO model, reads live GPS, and reports detections over HTTP
-- **Live geospatial dashboard** — an interactive Leaflet map of Chennai with every reported pothole
-- **Automated severity classification** — potholes are graded `SMALL` / `MEDIUM` / `LARGE` from detection data
-- **GCC admin workflow** — status lifecycle `DETECTED → SENT_TO_GCC → VIEWED → ACTION_TAKEN` with a full audit history
-- **Analytics** — per-route and per-severity breakdowns, resolution tracking, and live stats
-- **AI-assisted enrichment** — Gemini-powered analysis of detected images
-- **MongoDB persistence with in-memory fallback** — the app boots and demos cleanly even when the database cluster is unreachable
+|  |  |  |
+|---|---|---|
+| 🎥 **Real-time detection**<br/><sub>YOLO on Raspberry Pi buses with live GPS</sub> | 🗺️ **Live Chennai map**<br/><sub>Interactive Leaflet map of every pothole</sub> | 🤖 **AI severity grading**<br/><sub>SMALL / MEDIUM / LARGE via Gemini analysis</sub> |
+| 🏛️ **GCC admin workflow**<br/><sub>DETECTED → SENT_TO_GCC → VIEWED → ACTION_TAKEN</sub> | 📊 **Analytics dashboard**<br/><sub>Per-route & per-severity stats with charts</sub> | 🔁 **Duplicate clustering**<br/><sub>10 m spatial dedupe keeps the map clean</sub> |
 
 ## 🏗️ Architecture
 
@@ -31,28 +64,30 @@ Detect potholes in real time from GPS-enabled cameras mounted on city buses, map
 └───────────────────────────┘         └───────────────────────────────────────────┘
 ```
 
+## 🧰 Tech Stack
+
 | Layer | Technology |
 |-------|------------|
-| Frontend | React 19 · TypeScript · Vite · Tailwind CSS v4 |
-| Maps | Leaflet + react-leaflet |
-| Charts | Recharts |
-| Server | Express (`server.ts`) |
-| Database | MongoDB Atlas (with automatic in-memory fallback) |
-| Realtime | Firebase Firestore |
-| AI | Google Gemini (`@google/genai`) |
-| Edge device | Python · YOLO (`edge/main.py`) |
+| 🖥️ Frontend | React 19 · TypeScript · Vite · Tailwind CSS v4 |
+| 🗺️ Maps | Leaflet + react-leaflet |
+| 📈 Charts | Recharts |
+| ⚙️ Server | Express (`server.ts`) |
+| 🗄️ Database | MongoDB Atlas (with automatic in-memory fallback) |
+| ⚡ Realtime | Firebase Firestore |
+| 🤖 AI | Google Gemini (`@google/genai`) |
+| 📡 Edge device | Python · YOLO (`edge/main.py`) |
 
-## 🚀 Getting Started
+## 🧑‍💻 Getting Started
 
 **Prerequisites:** Node.js 18+
 
-### 1. Install dependencies
+<kbd>1</kbd> **Install dependencies**
 
 ```bash
 npm install
 ```
 
-### 2. Configure environment variables
+<kbd>2</kbd> **Configure environment variables**
 
 Copy `.env.example` to `.env` and fill in your values:
 
@@ -68,18 +103,18 @@ cp .env.example .env
 | `MONGODB_HOST` | Atlas cluster host (default: `cluster0.uotjzrt.mongodb.net`) |
 | `MONGODB_DB` | Database name (default: `urban-eyes`) |
 
+> [!NOTE]
 > If MongoDB is not configured or unreachable, the server logs `[MEMORY MODE]` and
 > uses an in-memory store so the dashboard, map, and admin flows still work for demos.
 > Data resets on restart.
 
-### 3. Run the app
+<kbd>3</kbd> **Run the app**
 
 ```bash
 npm run dev
 ```
 
-The server starts on **http://localhost:3000** — it serves the API and the Vite
-frontend together.
+The server starts on **http://localhost:3000** — it serves the API and the Vite frontend together.
 
 ## 🔌 API Reference
 
@@ -119,13 +154,13 @@ source .venv/bin/activate
 python main.py --verbose            # run the detector
 ```
 
-No hardware yet? `python main.py --simulate` generates simulated detections to
-verify the full pipeline end-to-end.
+No hardware yet? `python main.py --simulate` generates simulated detections to verify the full pipeline end-to-end.
 
 ## 📁 Project Structure
 
 ```
 ├── server.ts                  # Express API + Vite middleware
+├── assets/                    # README banner & media
 ├── src/
 │   ├── components/            # Dashboard, PotholeMap, PotholeList, AdminPanel
 │   ├── lib/                   # Firebase / Firestore setup & helpers
@@ -139,10 +174,12 @@ verify the full pipeline end-to-end.
 
 ## 🛡️ Security
 
-- Secrets (`GEMINI_API_KEY`, MongoDB credentials) are read from environment variables and are **not** committed
-- Firebase client config is public by design (Firebase Web apps); access is enforced by `firestore.rules`
-- Server-side validation and update restrictions are specified in **[security_spec.md](security_spec.md)**, including the "Dirty Dozen" test payloads
+- 🔐 Secrets (`GEMINI_API_KEY`, MongoDB credentials) are read from environment variables and are **not** committed
+- 🧩 Firebase client config is public by design (Firebase Web apps); access is enforced by `firestore.rules`
+- 🧪 Server-side validation and update restrictions are specified in **[security_spec.md](security_spec.md)**, including the "Dirty Dozen" test payloads
 
-## 📄 License
+---
 
-Private / internal project — see repository settings for access.
+<p align="center">
+  <sub>Built with ❤️ in Chennai · Urban Eyes Chennai · Greater Chennai Corporation</sub>
+</p>
