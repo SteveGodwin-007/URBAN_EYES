@@ -61,7 +61,8 @@ Key settings:
 | `BUS_ROUTE_ID` | e.g. `21G` (shown on the dashboard) |
 | `BUS_ID` | e.g. `CHN-BUS-7822` |
 | `MODEL_PATH` | Your pothole-trained model (see below) |
-| `COORDS_OVERRIDE` | `"13.0827,80.2707"` to use fixed coords when no GPS module is attached (leave empty to use GPS) |
+| `WIFI_LOCATION` | `true` = when there's no GPS fix, locate from the connected network's public IP (city-level, ipapi.co, no key). `WIFI_LOCATION_TTL` caches the lookup (default 300 s). |
+| `COORDS_OVERRIDE` | `"13.0827,80.2707"` to use fixed coords when no GPS module is attached (leave empty to use GPS/Wi-Fi) |
 | `USE_CSI` | `true` = CSI camera via picamera2, `false` = force USB webcam |
 | `DETECT_CLASSES_ANY` | `false` (default) = only report pothole-like classes; `true` = report every detection above the threshold |
 
@@ -149,8 +150,10 @@ journalctl -u urban-eyes-edge -f
 | Symptom | Fix |
 |---------|-----|
 | `Camera initialized: OpenCV USB camera` when using CSI | Check ribbon cable; try `USE_CSI=true` (default). |
-| `No GPS fix yet` | Module needs sky view / fix. Or set `COORDS_OVERRIDE`. |
+| `No location available` | GPS needs sky view, or set `WIFI_LOCATION=true` / `COORDS_OVERRIDE`. |
 | `Failed to reach server` | Wrong `API_ENDPOINT` or Pi not on the server's network. |
+| `Server responded 413` | Payload too large — the server's JSON limit was raised to 10 MB in `server.ts`; redeploy it. |
+| `[SKIP] Pothole already documented in this vicinity` | Spatial dedupe: another detection already exists within the threshold. With `WIFI_LOCATION` the coords never move, so set `DUPLICATE_DISTANCE_M=0` (edge) **and** `DEDUPE_DISTANCE_M=0` (server env). |
 | `Failed to load model` | `MODEL_PATH` doesn't exist on the Pi — copy the exported model over. |
 | Slow detection | Use NCNN (`format='ncnn'`) and `IMGSZ=320`. |
 | `ultralytics is not installed` | `source .venv/bin/activate && pip install -r requirements.txt` |

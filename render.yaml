@@ -21,6 +21,10 @@ services:
         value: https://urban-eyes-yk0f.onrender.com
       - key: GEMINI_API_KEY
         sync: false
+      # Preferred data store (Tiger Cloud / any Postgres). When set, the app
+      # persists detections here instead of MongoDB or the in-memory fallback.
+      - key: DATABASE_URL
+        sync: false
       - key: MONGODB_USER
         sync: false
       - key: MONGODB_PASSWORD

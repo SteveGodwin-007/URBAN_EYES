@@ -3,6 +3,8 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { MongoClient, ObjectId } from 'mongodb';
+import { Pool } from 'pg';
+import { randomUUID } from 'crypto';
 import dotenv from 'dotenv';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -22,16 +24,126 @@ const finalMongoUri = mongoUri ?? (
     : null
 );
 
-// --- Data layer: MongoDB with an in-memory fallback ---
-// The app must boot even when the Atlas cluster is unreachable (e.g. an
-// expired/deleted free-tier cluster). If Mongo fails to connect, we degrade
-// to a simple in-memory store so the dashboard, map and admin flows still
-// work for demos. In-memory data resets on restart.
+// --- Data layer: PostgreSQL (preferred) -> MongoDB -> in-memory fallback ---
+// The app must boot even when no database is reachable. DATABASE_URL (Tiger
+// Cloud / any Postgres) is tried first, then MongoDB Atlas, and if both fail
+// we degrade to a simple in-memory store so the dashboard, map and admin
+// flows still work for demos. In-memory data resets on restart.
 
 interface PotholeStore {
   find(filter?: any): { toArray(): Promise<any[]> };
   insertOne(doc: any): Promise<{ insertedId: any }>;
   updateOne(filter: any, update: any): Promise<{ matchedCount: number }>;
+}
+
+// PostgreSQL store — same contract as the Mongo collection, backed by a
+// single `potholes` table (id + JSONB document).
+class PgStore implements PotholeStore {
+  private constructor(private pool: Pool) {}
+
+  static async connect(connectionString: string): Promise<PgStore> {
+    // pg merges parse(connectionString) OVER any explicit `ssl` option, so the
+    // SSL mode must be carried by the URL itself. Tiger Cloud signs its
+    // certificates with a private CA, so full verification fails ("self-signed
+    // certificate in certificate chain"). Strategy: try the URL as-is first
+    // (full verification); only if the failure is certificate-related, retry
+    // with pg's documented `uselibpqcompat=true` flag, which gives
+    // libpq-compatible `sslmode=require` semantics (TLS on, verification off —
+    // traffic stays encrypted). Auth/SQL errors do NOT retry.
+    const hasSslMode = /([?&])sslmode=/i.test(connectionString);
+    const attempts: Array<{ label: string; connStr: string; relaxed: boolean }> = hasSslMode
+      ? [
+          { label: 'TLS with certificate verification', connStr: connectionString, relaxed: false },
+          {
+            label: 'TLS without certificate verification (private CA)',
+            connStr: PgStore.withParam(connectionString, 'uselibpqcompat', 'true'),
+            relaxed: true,
+          },
+        ]
+      : [{ label: 'default', connStr: connectionString, relaxed: false }];
+
+    let lastError: any;
+    for (const attempt of attempts) {
+      const pool = new Pool({
+        connectionString: attempt.connStr,
+        connectionTimeoutMillis: 10000,
+      });
+      try {
+        // The schema check doubles as the connectivity check: bad credentials
+        // or an unreachable host throw here and the caller falls back.
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS potholes (
+            id         TEXT PRIMARY KEY,
+            data       JSONB NOT NULL,
+            created_at BIGINT NOT NULL
+          )
+        `);
+        if (attempt.relaxed) {
+          console.warn(
+            '[POSTGRES] Server certificate not in the system trust store (private CA); '
+            + 'connected with TLS encryption but without certificate validation.'
+          );
+        }
+        return new PgStore(pool);
+      } catch (error: any) {
+        lastError = error;
+        await pool.end().catch(() => {});
+        const message = String(error?.message || error);
+        if (attempt.relaxed || !/certificate|self-signed|ssl|tls/i.test(message)) {
+          break; // certificate-independent failure (auth, DNS, timeout) — retrying won't help
+        }
+      }
+    }
+    throw lastError;
+  }
+
+  private static withParam(url: string, key: string, value: string): string {
+    return url + (url.includes('?') ? '&' : '?') + key + '=' + value;
+  }
+
+  find(filter: any = {}) {
+    return {
+      toArray: async () => {
+        const res = await this.pool.query(
+          'SELECT id, data FROM potholes ORDER BY created_at ASC'
+        );
+        let results = res.rows.map((r: any) => ({ _id: r.id, ...r.data }));
+        // Only the filter shape used by the duplicate check is supported
+        // (mirrors MemoryStore).
+        if (filter?.status?.$ne) {
+          results = results.filter((d: any) => d.status !== filter.status.$ne);
+        }
+        return results;
+      },
+    };
+  }
+
+  async insertOne(doc: any) {
+    const id = randomUUID();
+    await this.pool.query(
+      'INSERT INTO potholes (id, data, created_at) VALUES ($1, $2, $3)',
+      [id, doc, Date.now()]
+    );
+    return { insertedId: id };
+  }
+
+  async updateOne(filter: any, update: any) {
+    const targetId = filter?._id?.toString();
+    if (!targetId) return { matchedCount: 0 };
+    const res = await this.pool.query('SELECT data FROM potholes WHERE id = $1', [targetId]);
+    const row = res.rows[0];
+    if (!row) return { matchedCount: 0 };
+    const doc = { ...row.data };
+    if (update?.$set) Object.assign(doc, update.$set);
+    if (update?.$push) {
+      for (const [key, value] of Object.entries(update.$push)) {
+        doc[key] = doc[key] || [];
+        doc[key].push(value);
+      }
+    }
+    await this.pool.query('UPDATE potholes SET data = $1 WHERE id = $2', [doc, targetId]);
+    return { matchedCount: 1 };
+  }
 }
 
 class MemoryStore implements PotholeStore {
@@ -72,9 +184,25 @@ class MemoryStore implements PotholeStore {
 }
 
 let potholesCollection: PotholeStore;
-let dataSource: 'mongodb' | 'memory';
+let dataSource: 'mongodb' | 'postgres' | 'memory';
 
-async function connectStore(): Promise<{ store: PotholeStore; mode: 'mongodb' | 'memory' }> {
+async function connectStore(): Promise<{ store: PotholeStore; mode: 'mongodb' | 'postgres' | 'memory' }> {
+  const problems: string[] = [];
+
+  // 1) PostgreSQL via DATABASE_URL (Tiger Cloud, Neon, Render Postgres, ...)
+  const databaseUrl = process.env.DATABASE_URL;
+  if (databaseUrl) {
+    try {
+      const store = await PgStore.connect(databaseUrl);
+      return { store, mode: 'postgres' };
+    } catch (error: any) {
+      problems.push(`PostgreSQL unreachable (${error?.message || error})`);
+    }
+  } else {
+    problems.push('no DATABASE_URL set');
+  }
+
+  // 2) MongoDB Atlas (legacy / optional)
   if (finalMongoUri) {
     try {
       const mongoClient = new MongoClient(finalMongoUri, { serverSelectionTimeoutMS: 8000 });
@@ -82,13 +210,15 @@ async function connectStore(): Promise<{ store: PotholeStore; mode: 'mongodb' | 
       const db = mongoClient.db(mongoDbName);
       return { store: db.collection<any>('potholes'), mode: 'mongodb' };
     } catch (error: any) {
-      console.warn(`\n[MEMORY MODE] Could not connect to MongoDB (${error?.message || error}).`);
-      console.warn('[MEMORY MODE] Falling back to an in-memory store — data will reset on restart.\n');
+      problems.push(`MongoDB unreachable (${error?.message || error})`);
     }
   } else {
-    console.warn('\n[MEMORY MODE] No MongoDB configuration found (set MONGODB_URI or MONGODB_USER + MONGODB_PASSWORD).');
-    console.warn('[MEMORY MODE] Using an in-memory store — data will reset on restart.\n');
+    problems.push('no MongoDB configuration found (set MONGODB_URI or MONGODB_USER + MONGODB_PASSWORD)');
   }
+
+  // 3) In-memory fallback so the app still boots (data resets on restart).
+  console.warn(`\n[MEMORY MODE] ${problems.join('; ')}.`);
+  console.warn('[MEMORY MODE] Falling back to an in-memory store — data will reset on restart.\n');
   return { store: new MemoryStore(), mode: 'memory' };
 }
 
@@ -102,10 +232,18 @@ async function startServer() {
   // and fall back to 3000 for local development.
   const PORT = Number(process.env.PORT) || 3000;
 
-  expressApp.use(express.json());
+  // Edge devices embed the captured JPEG as a base64 data URL (SEND_IMAGE=true),
+  // which easily exceeds Express's default 100kb JSON limit and made the server
+  // answer 413 (PayloadTooLargeError) — the Pi then logged "Server responded
+  // 413" and nothing reached the dashboard. Allow up to 10mb for image uploads.
+  expressApp.use(express.json({ limit: '10mb' }));
 
   // --- API Routes ---
   console.log(`[${dataSource.toUpperCase()}] Data source ready.`);
+
+  // Spatial dedupe threshold (metres). Overridable so a stationary bench test
+  // (e.g. IP-derived coordinates that never move) can set DEDUPE_DISTANCE_M=0.
+  const DEDUPE_DISTANCE_M = Number(process.env.DEDUPE_DISTANCE_M ?? 10);
 
   // Helper: Haversine distance in meters
   function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -142,7 +280,7 @@ async function startServer() {
       existingDocs.forEach(doc => {
         const data = doc as any;
         const dist = getDistance(latitude, longitude, data.location.latitude, data.location.longitude);
-        if (dist < 10) { // 10 meters threshold
+        if (dist < DEDUPE_DISTANCE_M) { // configurable metres threshold (default 10)
           isDuplicate = true;
         }
       });

@@ -23,9 +23,11 @@ Environment variables (see edge.env.example):
     IMGSZ                 Inference resolution (320 or 640)
     DETECT_CLASSES        Comma-separated class keywords to report
     GPS_PORT              Serial device for GPS (default /dev/serial0)
-    GPS_BAUD              GPS baud rate (default 9600)
-    GPS_TIMEOUT           Seconds to wait for a GPS fix each cycle
+    GPS_BAUD              GPS baud rate (default 9600)    GPS_TIMEOUT          Seconds to wait for a GPS fix each cycle
     COORDS_OVERRIDE       "lat,lon" to use when no GPS module is attached
+    WIFI_LOCATION         true = fall back to the network's public-IP location
+                          (ipapi.co) when there is no GPS fix
+    WIFI_LOCATION_TTL     Seconds to cache the Wi-Fi lookup (default 300)
     SEND_IMAGE            true/false — embed the JPEG frame in the upload
     MIN_UPLOAD_INTERVAL   Min seconds between uploads to the server
     DUPLICATE_DISTANCE_M  Skip detections within this distance (meters)
@@ -76,6 +78,10 @@ class Config:
                 self.coords_override = (float(lat_s.strip()), float(lon_s.strip()))
             except ValueError:
                 log.warning("COORDS_OVERRIDE '%s' is invalid, ignoring it.", override)
+        # Fallback location from the connected network's public IP — used when
+        # no GPS module is fitted yet (city-level accuracy, no API key).
+        self.wifi_location = os.getenv("WIFI_LOCATION", "false").lower() in ("1", "true", "yes")
+        self.wifi_location_ttl = float(os.getenv("WIFI_LOCATION_TTL", "300"))
         self.send_image = os.getenv("SEND_IMAGE", "true").lower() in ("1", "true", "yes")
         self.min_upload_interval = float(os.getenv("MIN_UPLOAD_INTERVAL", "3"))
         self.duplicate_distance_m = float(os.getenv("DUPLICATE_DISTANCE_M", "10"))
@@ -85,6 +91,32 @@ class Config:
         # if the model has no pothole-like class names. Default (false) is
         # strict: only report detections whose class matches DETECT_CLASSES.
         self.allow_any_class = os.getenv("DETECT_CLASSES_ANY", "false").lower() in ("1", "true", "yes")
+
+
+def load_edge_env() -> None:
+    """Load edge.env (KEY=VALUE lines) into the environment, if present.
+
+    Real environment variables always win (os.environ.setdefault), so
+    overrides like ``API_ENDPOINT=... python main.py`` still work, and the
+    systemd unit's EnvironmentFile= is unaffected. This makes manual runs
+    (``python main.py --verbose``) pick up edge.env like the README promises.
+    """
+    env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "edge.env")
+    if not os.path.isfile(env_path):
+        return
+    try:
+        with open(env_path, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                if key:
+                    os.environ.setdefault(key, value)
+    except OSError as exc:
+        log.warning("Could not read %s: %s", env_path, exc)
 
 
 # ------------------------------------------------------------------- helpers --
@@ -192,6 +224,83 @@ class GpsReader:
                 self._serial.close()
             except Exception:
                 pass
+
+
+class WifiLocator:
+    """City-level fallback location derived from the connected network's public IP.
+
+    For buses without a GPS module: the Pi can't know its own position, but
+    its public egress IP maps to one (keyless HTTPS APIs, no signup). Both
+    providers are city-accurate; the chain keeps working when one rate-limits
+    us. The answer only changes when the network's egress IP does, so it is
+    cached for `ttl` seconds. Good enough to plot detections on the Chennai
+    map — not for metre-level dedupe.
+    """
+
+    # (name, url) tried in order until one answers with coordinates.
+    PROVIDERS = (
+        ("ipapi.co", "https://ipapi.co/json/"),
+        ("ipinfo.io", "https://ipinfo.io/json/"),
+    )
+
+    def __init__(self, enabled: bool, ttl: float = 300.0, timeout: float = 6.0):
+        self.enabled = enabled
+        self.ttl = ttl
+        self.timeout = timeout
+        self._cache = None  # (lat, lon, fetched_at)
+        self._warned_at = 0.0
+        self._logged = False
+
+    @staticmethod
+    def _extract(name: str, data: dict):
+        """Pull (lat, lon) out of a provider's JSON payload."""
+        if name == "ipinfo.io":
+            lat_s, lon_s = str(data.get("loc", "")).split(",")
+            return float(lat_s), float(lon_s)
+        return float(data["latitude"]), float(data["longitude"])
+
+    def locate(self):
+        """Returns (latitude, longitude) or None (disabled / offline / error)."""
+        if not self.enabled:
+            return None
+        now = time.time()
+        if self._cache and now - self._cache[2] < self.ttl:
+            return (self._cache[0], self._cache[1])
+        try:
+            import requests
+        except ImportError:
+            log.error("requests is not installed; cannot use WIFI_LOCATION.")
+            return None
+        lat = lon = None
+        last_error = None
+        provider = None
+        for name, url in self.PROVIDERS:
+            try:
+                resp = requests.get(url, timeout=self.timeout)
+                if resp.status_code != 200:
+                    raise RuntimeError("HTTP %d" % resp.status_code)
+                lat, lon = self._extract(name, resp.json())
+                if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
+                    raise ValueError("implausible coordinates (%s, %s)" % (lat, lon))
+                provider = name
+                break
+            except Exception as exc:
+                last_error = "%s: %s" % (name, exc)
+                lat = lon = None
+        if lat is None:
+            # Throttled so a flaky network doesn't spam the journal.
+            if now - self._warned_at > 300:
+                self._warned_at = now
+                log.warning("Wi-Fi location lookup failed — %s", last_error)
+            return None
+        self._cache = (lat, lon, now)
+        if not self._logged:
+            self._logged = True
+            log.info(
+                "Wi-Fi location ready: (%.6f, %.6f) via %s (cached %ds)",
+                lat, lon, provider, int(self.ttl),
+            )
+        return (lat, lon)
 
 
 # ------------------------------------------------------------------ camera --
@@ -422,6 +531,9 @@ def run_edge(cfg: Config) -> int:
         return 1
 
     gps = GpsReader(cfg.gps_port, cfg.gps_baud, cfg.gps_timeout, cfg.coords_override)
+    wifi = WifiLocator(cfg.wifi_location, cfg.wifi_location_ttl)
+    if cfg.wifi_location:
+        log.info("Wi-Fi location fallback enabled (no GPS fix required).")
 
     log.info("--- POTHOLE MONITORING [BUS %s | ROUTE %s] ---", cfg.bus_id, cfg.bus_route_id)
     log.info("Server endpoint: %s", cfg.api_endpoint)
@@ -451,10 +563,16 @@ def run_edge(cfg: Config) -> int:
 
                 fix = gps.read_fix()
                 if fix is None:
+                    # No GPS fix (or no module) — try the network's public IP.
+                    fix = wifi.locate()
+                if fix is None:
                     # Throttle this warning so tunnels/trees don't spam the log.
                     if time.time() - last_gps_warn_at > 30:
                         last_gps_warn_at = time.time()
-                        log.warning("No GPS fix yet — waiting for the module to lock satellites.")
+                        log.warning(
+                            "No location available — waiting for a GPS fix "
+                            "(or a Wi-Fi lookup if WIFI_LOCATION=true)."
+                        )
                     continue
                 lat, lon = fix
 
@@ -522,6 +640,7 @@ def main() -> int:
         datefmt="%H:%M:%S",
     )
 
+    load_edge_env()  # pick up edge.env so manual runs match the systemd unit
     cfg = Config()
     if args.simulate:
         return run_simulation(cfg)

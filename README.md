@@ -128,13 +128,15 @@ cp .env.example .env
 |----------|---------|
 | `GEMINI_API_KEY` | Google Gemini API key (required for AI analysis) |
 | `APP_URL` | Public URL where the app is hosted |
-| `MONGODB_USER` / `MONGODB_PASSWORD` | MongoDB Atlas credentials |
+| `DATABASE_URL` | **Preferred:** PostgreSQL connection string (e.g. Tiger Cloud free tier). When set, detections persist across restarts/redeploys. |
+| `MONGODB_USER` / `MONGODB_PASSWORD` | MongoDB Atlas credentials (fallback when `DATABASE_URL` is absent) |
 | `MONGODB_HOST` | Atlas cluster host (default: `cluster0.uotjzrt.mongodb.net`) |
 | `MONGODB_DB` | Database name (default: `urban-eyes`) |
 
 > [!NOTE]
-> If MongoDB is not configured or unreachable, the server logs `[MEMORY MODE]` and
-> uses an in-memory store so the dashboard, map, and admin flows still work for demos.
+> If neither PostgreSQL (`DATABASE_URL`) nor MongoDB is configured/reachable,
+> the server logs `[MEMORY MODE]` and uses an in-memory store so the
+> dashboard, map, and admin flows still work for demos.
 > Data resets on restart.
 
 <kbd>3</kbd> **Run the app**
